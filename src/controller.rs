@@ -176,7 +176,7 @@ pub(crate) fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::
 
     let start = gio::SimpleAction::new("translate", None);
     start.connect_activate(glib::clone!(
-        #[weak] input, #[weak] output, #[weak] source, #[weak] target,
+        #[weak] window, #[weak] input, #[weak] output, #[weak] source, #[weak] target,
         #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
         #[weak] translate, #[weak] cancel, #[weak] overlay,
         #[weak] swap, #[weak] copy, #[weak] result_status,
@@ -223,7 +223,7 @@ pub(crate) fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::
             });
             *job.borrow_mut() = Some(handle);
             glib::spawn_future_local(glib::clone!(
-                #[weak] input, #[weak] output, #[weak] source, #[weak] target,
+                #[weak] window, #[weak] input, #[weak] output, #[weak] source, #[weak] target,
                 #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
                 #[weak] translate, #[weak] cancel,
                 #[weak] swap, #[weak] result_status,
@@ -240,8 +240,13 @@ pub(crate) fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::
                             }
                             api::TranslationEvent::Finished { truncated } => {
                                 if truncated {
-                                    result_status.set_text("Output limit reached · Translation is incomplete; increase output tokens");
-                                    result_status.set_visible(true);
+                                    let dialog = adw::AlertDialog::new(
+                                        Some("Output limit reached"),
+                                        Some("The translation is incomplete. Increase Maximum output tokens in Settings and try again."),
+                                    );
+                                    dialog.add_response("close", "Close");
+                                    dialog.set_close_response("close");
+                                    dialog.present(Some(&window));
                                 }
                                 terminal = true;
                                 break;
