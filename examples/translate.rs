@@ -13,8 +13,9 @@ fn main() -> Result<()> {
     let endpoint = args
         .next()
         .unwrap_or_else(|| "http://fedora.local:9931".to_owned());
+    let model = args.next().filter(|value| !value.trim().is_empty());
     if args.next().is_some() {
-        anyhow::bail!("Usage: translate [text] [target] [endpoint]");
+        anyhow::bail!("Usage: translate [text] [target] [endpoint] [model]");
     }
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
@@ -24,9 +25,10 @@ fn main() -> Result<()> {
             source: None,
             target,
             max_tokens: 512,
+            model,
         };
         let translate = async {
-            let result = api::translate(&endpoint, request, sender.clone()).await;
+            let result = api::translate(&endpoint, request, None, sender.clone()).await;
             if let Err(error) = &result {
                 let _ = sender
                     .send(api::TranslationEvent::Failed(format!("{error:#}")))

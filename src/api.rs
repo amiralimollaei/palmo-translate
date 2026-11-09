@@ -8,6 +8,7 @@ pub struct TranslationRequest {
     pub source: Option<String>,
     pub target: String,
     pub max_tokens: u32,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -17,7 +18,7 @@ pub enum TranslationEvent {
     Failed(String),
 }
 
-fn completion_url(endpoint: &str) -> Result<Url> {
+pub(crate) fn completion_url(endpoint: &str) -> Result<Url> {
     let mut url =
         Url::parse(endpoint).map_err(|_| anyhow::anyhow!("Invalid server endpoint URL"))?;
     if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
@@ -35,6 +36,16 @@ fn completion_url(endpoint: &str) -> Result<Url> {
         _ => bail!("Server endpoint path must be / or /v1"),
     }
     Ok(url)
+}
+
+pub(crate) fn authorization_header(key: &str) -> Result<reqwest::header::HeaderValue> {
+    if key.trim().is_empty() {
+        bail!("API key must not be empty");
+    }
+    let mut value = reqwest::header::HeaderValue::from_str(&format!("Bearer {key}"))
+        .map_err(|_| anyhow::anyhow!("API key contains invalid HTTP header characters"))?;
+    value.set_sensitive(true);
+    Ok(value)
 }
 
 fn prompt(request: &TranslationRequest) -> Result<String> {
@@ -70,12 +81,14 @@ fn prompt(request: &TranslationRequest) -> Result<String> {
 }
 
 #[derive(Serialize)]
-struct CompletionRequest {
+struct CompletionRequest<'a> {
     prompt: String,
     max_tokens: u32,
     temperature: u8,
     stop: [&'static str; 2],
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -208,6 +221,7 @@ impl StreamParser {
 pub async fn translate(
     endpoint: &str,
     request: TranslationRequest,
+    api_key: Option<&str>,
     events: async_channel::Sender<TranslationEvent>,
 ) -> Result<()> {
     let url = completion_url(endpoint)?;
@@ -217,6 +231,7 @@ pub async fn translate(
         temperature: 0,
         stop: ["<|plamo:tag|>", "<|plamo:bos|>"],
         stream: true,
+        model: request.model.as_deref().map(str::trim).filter(|s| !s.is_empty()),
     };
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
@@ -224,9 +239,11 @@ pub async fn translate(
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .context("Could not create HTTP client")?;
-    let mut response = client
-        .post(url)
-        .json(&body)
+    let mut builder = client.post(url).json(&body);
+    if let Some(key) = api_key {
+        builder = builder.header(reqwest::header::AUTHORIZATION, authorization_header(key)?);
+    }
+    let mut response = builder
         .send()
         .await
         .map_err(|e| e.without_url())
@@ -285,6 +302,7 @@ mod tests {
             source: None,
             target: "ja".into(),
             max_tokens: 100,
+            model: None,
         }
     }
 
@@ -403,5 +421,16 @@ mod tests {
         );
         assert_eq!(parser.next_event().unwrap(), None);
         assert!(parser.end().is_err());
+    }
+
+    #[test]
+    fn authorization_rejects_header_injection_and_redacts_debug_output() {
+        let key = "secret-test-token";
+        let header = authorization_header(key).unwrap();
+        assert!(!format!("{header:?}").contains(key));
+        for invalid in ["", "  ", "secret\r\nX-Injected: yes", "secret\n"] {
+            let error = authorization_header(invalid).unwrap_err();
+            assert!(!error.to_string().contains("secret"));
+        }
     }
 }

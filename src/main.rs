@@ -1,4 +1,5 @@
 mod api;
+mod credentials;
 mod languages;
 
 use adw::prelude::*;
@@ -13,6 +14,8 @@ struct Settings {
     source: Option<String>,
     target: String,
     max_tokens: u32,
+    model: String,
+    use_api_key: bool,
 }
 
 impl Default for Settings {
@@ -22,6 +25,8 @@ impl Default for Settings {
             source: None,
             target: "en".into(),
             max_tokens: 4096,
+            model: String::new(),
+            use_api_key: false,
         }
     }
 }
@@ -141,12 +146,42 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
         .text(&settings.endpoint)
         .build();
     connection.add(&endpoint);
+    let model = adw::EntryRow::builder()
+        .title("Model ID (optional)")
+        .text(&settings.model)
+        .build();
+    connection.add(&model);
     let limit = adw::SpinRow::with_range(64.0, 16384.0, 64.0);
     limit.set_title("Maximum output tokens");
     limit.set_subtitle("Input and output together must fit the server context window.");
     limit.set_value(settings.max_tokens.clamp(64, 16384) as f64);
     connection.add(&limit);
     page.add(&connection);
+    let authentication = adw::PreferencesGroup::builder()
+        .title("API authentication")
+        .description("Keys are stored in the OS credential store for this server only. HTTP exposes keys in transit; use HTTPS for remote servers.")
+        .build();
+    let use_api_key = adw::SwitchRow::builder()
+        .title("Use API key")
+        .subtitle("Enable after saving a key. Missing or locked keys block translation.")
+        .active(settings.use_api_key)
+        .build();
+    authentication.add(&use_api_key);
+    let api_key = adw::PasswordEntryRow::builder()
+        .title("New API key")
+        .build();
+    let save_key = gtk::Button::with_label("Save key");
+    save_key.set_valign(gtk::Align::Center);
+    api_key.add_suffix(&save_key);
+    authentication.add(&api_key);
+    let remove_key = gtk::Button::with_label("Remove saved key");
+    authentication.add(&remove_key);
+    page.add(&authentication);
+    endpoint.connect_changed(glib::clone!(
+        #[weak]
+        api_key,
+        move |_| api_key.set_text("")
+    ));
     preferences.add(&page);
     let settings_button = gtk::Button::from_icon_name("emblem-system-symbolic");
     settings_button.set_tooltip_text(Some("Settings"));
@@ -218,12 +253,19 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
         #[weak]
         limit,
         #[weak]
+        model,
+        #[weak]
+        use_api_key,
+        #[weak]
+        api_key,
+        #[weak]
         source,
         #[weak]
         target,
         #[weak]
         overlay,
         move |_| {
+            api_key.set_text("");
             let settings = Settings {
                 endpoint: endpoint.text().to_string(),
                 source: source
@@ -234,6 +276,8 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                     .0
                     .to_owned(),
                 max_tokens: limit.value() as u32,
+                model: model.text().trim().to_owned(),
+                use_api_key: use_api_key.is_active(),
             };
             if let Err(error) = settings.save() {
                 overlay.add_toast(adw::Toast::new(&format!("Settings not saved: {error}")));
@@ -270,6 +314,52 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
 
     let job = Rc::new(RefCell::new(None::<tokio::task::JoinHandle<()>>));
     let generation = Rc::new(std::cell::Cell::new(0u64));
+    let credential_busy = Rc::new(std::cell::Cell::new(false));
+    for (button, remove) in [(&save_key, false), (&remove_key, true)] {
+        button.connect_clicked(glib::clone!(
+            #[weak] endpoint, #[weak] api_key, #[weak] page, #[weak] preferences,
+            #[weak] overlay,
+            #[strong] runtime, #[strong] credential_busy, #[strong] job,
+            move |_| {
+                if credential_busy.get() || job.borrow().is_some() {
+                    preferences.add_toast(adw::Toast::new("Wait for the current operation to finish"));
+                    return;
+                }
+                let key = if remove { String::new() } else { api_key.text().to_string() };
+                if !remove && key.trim().is_empty() {
+                    preferences.add_toast(adw::Toast::new("Enter an API key to save"));
+                    return;
+                }
+                let url = endpoint.text().to_string();
+                api_key.set_text("");
+                credential_busy.set(true);
+                page.set_sensitive(false);
+                let task = runtime.spawn_blocking(move || {
+                    if remove { credentials::delete(&url) } else { credentials::save(&url, &key) }
+                });
+                glib::spawn_future_local(glib::clone!(
+                    #[weak] page, #[weak] preferences, #[weak] overlay,
+                    #[strong] credential_busy,
+                    async move {
+                        let result = task.await.unwrap_or_else(|_| Err(anyhow::anyhow!("Credential-store operation failed")));
+                        credential_busy.set(false);
+                        page.set_sensitive(true);
+                        let message = match result {
+                            Ok(()) if remove => "API key removed · Disable Use API key for unauthenticated requests".to_owned(),
+                            Ok(()) => "API key saved securely · Enable Use API key to send it".to_owned(),
+                            Err(error) => error.to_string(),
+                        };
+                        let toast = adw::Toast::new(&message);
+                        if preferences.is_mapped() {
+                            preferences.add_toast(toast);
+                        } else {
+                            overlay.add_toast(toast);
+                        }
+                    }
+                ));
+            }
+        ));
+    }
     input.buffer().connect_changed(glib::clone!(
         #[weak]
         translate,
@@ -351,25 +441,32 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
     let start = gio::SimpleAction::new("translate", None);
     start.connect_activate(glib::clone!(
         #[weak] input, #[weak] output, #[weak] source, #[weak] target,
-        #[weak] endpoint, #[weak] limit, #[weak] translate, #[weak] cancel,
+        #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
+        #[weak] translate, #[weak] cancel, #[weak] overlay,
         #[weak] swap, #[weak] spinner, #[weak] status, #[weak] copy,
-        #[strong] job, #[strong] generation, #[strong] runtime,
+        #[strong] job, #[strong] generation, #[strong] runtime, #[strong] credential_busy,
         move |_, _| {
+            if credential_busy.get() {
+                overlay.add_toast(adw::Toast::new("Wait for the credential-store operation to finish"));
+                return;
+            }
             if job.borrow().is_some() || text(&input.buffer()).trim().is_empty() { return; }
             let request = api::TranslationRequest {
                 text: text(&input.buffer()),
                 source: source.selected().checked_sub(1).map(|i| languages::LANGUAGES[i as usize].0.to_owned()),
                 target: languages::LANGUAGES[target.selected() as usize].0.to_owned(),
                 max_tokens: limit.value() as u32,
+                model: Some(model.text().trim().to_owned()).filter(|value| !value.is_empty()),
             };
             let url = endpoint.text().to_string();
-            let settings = Settings { endpoint: url.clone(), source: request.source.clone(), target: request.target.clone(), max_tokens: request.max_tokens };
+            let authenticate = use_api_key.is_active();
+            let settings = Settings { endpoint: url.clone(), source: request.source.clone(), target: request.target.clone(), max_tokens: request.max_tokens, model: model.text().trim().to_owned(), use_api_key: authenticate };
             let save_error = settings.save().err().map(|e| format!(" · Settings not saved: {e}"));
             generation.set(generation.get() + 1);
             let id = generation.get();
             output.buffer().set_text("");
             copy.set_sensitive(false);
-            for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), swap.upcast_ref(), translate.upcast_ref()] { widget.set_sensitive(false); }
+            for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), model.upcast_ref(), use_api_key.upcast_ref(), swap.upcast_ref(), translate.upcast_ref()] { widget.set_sensitive(false); }
             cancel.set_visible(true);
             spinner.set_visible(true);
             spinner.start();
@@ -377,14 +474,23 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
             status.set_text("Translating…");
             let (sender, receiver) = async_channel::bounded(16);
             let handle = runtime.spawn(async move {
-                if let Err(error) = api::translate(&url, request, sender.clone()).await {
+                let result = async {
+                    let key = if authenticate {
+                        let endpoint = url.clone();
+                        Some(tokio::task::spawn_blocking(move || credentials::load(&endpoint))
+                            .await.map_err(|_| anyhow::anyhow!("Credential-store operation failed"))??)
+                    } else { None };
+                    api::translate(&url, request, key.as_deref(), sender.clone()).await
+                }.await;
+                if let Err(error) = result {
                     let _ = sender.send(api::TranslationEvent::Failed(format!("{error:#}"))).await;
                 }
             });
             *job.borrow_mut() = Some(handle);
             glib::spawn_future_local(glib::clone!(
                 #[weak] input, #[weak] output, #[weak] source, #[weak] target,
-                #[weak] endpoint, #[weak] limit, #[weak] translate, #[weak] cancel,
+                #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
+                #[weak] translate, #[weak] cancel,
                 #[weak] swap, #[weak] spinner, #[weak] status,
                 #[strong] job, #[strong] generation,
                 async move {
@@ -418,7 +524,7 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                         status.add_css_class("error");
                     }
                     job.borrow_mut().take();
-                    for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), swap.upcast_ref()] { widget.set_sensitive(true); }
+                    for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), model.upcast_ref(), use_api_key.upcast_ref(), swap.upcast_ref()] { widget.set_sensitive(true); }
                     translate.set_sensitive(!text(&input.buffer()).trim().is_empty());
                     cancel.set_visible(false);
                     spinner.stop();
@@ -441,6 +547,10 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
         endpoint,
         #[weak]
         limit,
+        #[weak]
+        model,
+        #[weak]
+        use_api_key,
         #[weak]
         translate,
         #[weak]
@@ -465,6 +575,8 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                 endpoint.upcast_ref(),
                 limit.upcast_ref(),
                 swap.upcast_ref(),
+                model.upcast_ref(),
+                use_api_key.upcast_ref(),
             ] {
                 widget.set_sensitive(true);
             }
