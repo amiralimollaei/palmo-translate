@@ -1,6 +1,6 @@
 # Palmo Translate
 
-A Rust desktop GUI for an existing PLaMo 3 Translate server. Uses GTK4 and libadwaita through gtk-rs, like [GNOME Podcasts](https://gitlab.gnome.org/World/podcasts), plus Tokio and reqwest for asynchronous networking. No model is bundled, downloaded, or run locally.
+A Rust desktop GUI for an existing PLaMo 3 Translate server. It uses GTK4 and libadwaita through gtk-rs, plus Tokio and reqwest for asynchronous networking. No model is bundled, downloaded, or run locally.
 
 ## Use
 
@@ -9,7 +9,7 @@ Run `cargo run --release`. Open **Settings** using the gear icon in the window h
 - All 53 model-supported languages, including Persian and both Chinese variants.
 - Searchable language selectors; swap explicit source/target languages and reuse the translation.
 - Selectable output and copy-to-clipboard button.
-- Live streaming translation, cancellation that retains partial output, pop-up network/server errors, and an incomplete-output warning when the output token limit is reached. Partial output remains selectable and copyable during streaming or after cancellation/failure.
+- Live streaming translation with cancellation. Errors and warnings for incomplete or retained partial output remain visible until the output is cleared or a new translation starts. Partial output remains selectable and copyable during streaming or after cancellation or failure.
 - Equal-width language selectors with a centered swap button. Side-by-side editors on wide windows; vertically stacked on narrow ones.
 - Server, model ID, authentication-enabled flag, and output-token settings are saved when Settings closes; languages are also saved when a translation starts. Settings use GLib's platform-specific user configuration directory under `palmo-translate/settings.json`: on Linux, `$XDG_CONFIG_HOME/palmo-translate/settings.json`, normally `~/.config/palmo-translate/settings.json`. API keys, source text, and translation text are never saved in this JSON file.
 
@@ -49,7 +49,7 @@ Push the workflow and packaging script **before creating the release tag**, then
 
 ## Build prerequisites
 
-Rust **1.92+** (edition 2024), a C linker, pkg-config, GTK **4.12+**, and libadwaita **1.5+**. `Cargo.lock` is committed for reproducible dependency resolution. Uses gtk4 **0.11.5**, libadwaita **0.9.2**, and reqwest **0.13.5** with Rustls and platform certificate verification. Stable gtk-rs releases are used rather than Podcasts' development alpha versions; media playback dependencies are not needed.
+Rust **1.92+** (edition 2024), a C linker, pkg-config, GTK **4.12+**, and libadwaita **1.5+**. `Cargo.lock` is committed for reproducible dependency resolution. Uses gtk4 **0.11.5**, libadwaita **0.9.2**, and reqwest **0.13.5** with Rustls and platform certificate verification.
 
 ### Linux
 

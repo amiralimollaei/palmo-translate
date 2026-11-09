@@ -301,6 +301,13 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
     translate.set_tooltip_text(Some("Translate (Ctrl+Enter)"));
     controls.append(&translate);
     body.append(&controls);
+    let result_status = gtk::Label::new(None);
+    result_status.set_xalign(0.0);
+    result_status.set_wrap(true);
+    result_status.set_selectable(true);
+    result_status.add_css_class("error");
+    result_status.set_visible(false);
+    body.append(&result_status);
 
     let job = Rc::new(RefCell::new(None::<tokio::task::JoinHandle<()>>));
     let generation = Rc::new(std::cell::Cell::new(0u64));
@@ -362,8 +369,13 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
     output.buffer().connect_changed(glib::clone!(
         #[weak]
         copy,
+        #[weak]
+        result_status,
         move |buffer| {
             copy.set_sensitive(buffer.char_count() > 0);
+            if buffer.char_count() == 0 {
+                result_status.set_visible(false);
+            }
         }
     ));
     copy.connect_clicked(glib::clone!(
@@ -408,7 +420,7 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
         #[weak] input, #[weak] output, #[weak] source, #[weak] target,
         #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
         #[weak] translate, #[weak] cancel, #[weak] overlay,
-        #[weak] swap, #[weak] copy,
+        #[weak] swap, #[weak] copy, #[weak] result_status,
         #[strong] job, #[strong] generation, #[strong] runtime, #[strong] credential_busy,
         move |_, _| {
             if credential_busy.get() {
@@ -432,6 +444,7 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
             generation.set(generation.get() + 1);
             let id = generation.get();
             output.buffer().set_text("");
+            result_status.set_visible(false);
             copy.set_sensitive(false);
             for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), model.upcast_ref(), use_api_key.upcast_ref(), swap.upcast_ref(), translate.upcast_ref()] { widget.set_sensitive(false); }
             cancel.set_visible(true);
@@ -454,7 +467,7 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                 #[weak] input, #[weak] output, #[weak] source, #[weak] target,
                 #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
                 #[weak] translate, #[weak] cancel,
-                #[weak] swap, #[weak] overlay,
+                #[weak] swap, #[weak] result_status,
                 #[strong] job, #[strong] generation,
                 async move {
                     let mut terminal = false;
@@ -468,14 +481,16 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                             }
                             api::TranslationEvent::Finished { truncated } => {
                                 if truncated {
-                                    overlay.add_toast(adw::Toast::new("Output limit reached · Translation is incomplete; increase output tokens"));
+                                    result_status.set_text("Output limit reached · Translation is incomplete; increase output tokens");
+                                    result_status.set_visible(true);
                                 }
                                 terminal = true;
                                 break;
                             }
                             api::TranslationEvent::Failed(error) => {
                                 let partial = if output.buffer().char_count() > 0 { " · Partial translation retained" } else { "" };
-                                overlay.add_toast(adw::Toast::new(&format!("{error}{partial}")));
+                                result_status.set_text(&format!("{error}{partial}"));
+                                result_status.set_visible(true);
                                 terminal = true;
                                 break;
                             }
@@ -483,7 +498,8 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                     }
                     if generation.get() != id { return; }
                     if !terminal {
-                        overlay.add_toast(adw::Toast::new("Translation stream ended unexpectedly · Any partial translation is retained"));
+                        result_status.set_text("Translation stream ended unexpectedly · Any partial translation is retained");
+                        result_status.set_visible(true);
                     }
                     job.borrow_mut().take();
                     for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), model.upcast_ref(), use_api_key.upcast_ref(), swap.upcast_ref()] { widget.set_sensitive(true); }
@@ -497,6 +513,10 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
     app.set_accels_for_action("win.translate", &["<Primary>Return"]);
     translate.set_action_name(Some("win.translate"));
     cancel.connect_clicked(glib::clone!(
+        #[weak]
+        output,
+        #[weak]
+        result_status,
         #[weak]
         input,
         #[weak]
@@ -538,6 +558,10 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
             }
             translate.set_sensitive(!text(&input.buffer()).trim().is_empty());
             cancel.set_visible(false);
+            if output.buffer().char_count() > 0 {
+                result_status.set_text("Cancelled · Partial translation retained");
+                result_status.set_visible(true);
+            }
         }
     ));
     window.connect_close_request(move |_| {
