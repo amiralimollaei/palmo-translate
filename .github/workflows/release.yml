@@ -1,0 +1,134 @@
+name: Release binaries
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.release.id }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-26.04
+            platform: linux
+            arch: x86_64
+            extension: ''
+          - runner: windows-2025
+            platform: windows
+            arch: x86_64
+            extension: '.exe'
+          - runner: macos-15
+            platform: macos
+            arch: aarch64
+            extension: ''
+          - runner: macos-15-intel
+            platform: macos
+            arch: x86_64
+            extension: ''
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential pkg-config libgtk-4-dev libadwaita-1-dev
+
+      - name: Install macOS native dependencies
+        if: runner.os == 'macOS'
+        run: brew install pkg-config gtk4 libadwaita
+
+      - name: Install Rust
+        if: runner.os != 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Windows GNU toolchain and native dependencies
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2.33.0
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-rust
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-nasm
+
+      - name: Test and build (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cargo test --locked
+          cargo build --release --locked
+
+      - name: Test and build (Windows UCRT64)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          cargo test --locked
+          cargo build --release --locked
+
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Package binary and usage instructions
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+          RELEASE_ARCH: ${{ matrix.arch }}
+          BINARY_EXTENSION: ${{ matrix.extension }}
+        shell: bash
+        run: |
+          python .github/scripts/package-release.py \
+            --platform "$RELEASE_PLATFORM" \
+            --arch "$RELEASE_ARCH" \
+            --binary "target/release/palmo-translate$BINARY_EXTENSION"
+
+      - name: Stage release archive
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Attach archives to published release
+    needs: build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Generate SHA-256 checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip > SHA256SUMS
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" dist/* --clobber

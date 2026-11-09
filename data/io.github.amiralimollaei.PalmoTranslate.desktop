@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Palmo Translate
+Comment=Translate text using a PLaMo API server
+Exec=palmo-translate
+Icon=accessories-dictionary
+Terminal=false
+Categories=Utility;GNOME;GTK;
+Keywords=translation;PLaMo;language;
+StartupNotify=true
