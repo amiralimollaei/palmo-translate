@@ -7,7 +7,7 @@ A Rust desktop GUI for an existing PLaMo 3 Translate server. Uses GTK4 and libad
 Run `cargo run --release`. Open **Settings** using the gear icon in the window header to change **API server URL** or **Maximum output tokens**. The default server is `http://localhost:9931`; enter `http://fedora.local:9931` for the LAN server (a root URL or a URL ending in `/v1` is accepted). Choose the source language or automatic detection, choose a target, enter text, then click **Translate** or press **Ctrl+Enter** (**Command+Enter** on macOS).
 
 - All 53 model-supported languages, including Persian and both Chinese variants.
-- Searchable language selectors; swap explicit source/target languages and reuse the translation.
+- Searchable language selectors; swap explicit source/target languages and reuse the translation. Changing source text or either language marks retained output as stale until you translate again.
 - Selectable output and copy-to-clipboard button.
 - Live streaming translation, cancellation that retains partial output, visible network/server errors, and an explicit incomplete-output warning when the output token limit is reached. Partial output remains selectable and copyable during streaming or after cancellation/failure.
 - Equal-width language selectors with a centered swap button. Side-by-side editors on wide windows; vertically stacked on narrow ones.

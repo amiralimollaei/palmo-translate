@@ -289,6 +289,21 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
             }
         }
     ));
+    for selector in [&source, &target] {
+        selector.connect_selected_notify(glib::clone!(
+            #[weak]
+            status,
+            #[weak]
+            output,
+            #[strong]
+            job,
+            move |_| {
+                if job.borrow().is_none() && output.buffer().char_count() > 0 {
+                    status.set_text("Language changed · Translate again to update the result");
+                }
+            }
+        ));
+    }
     output.buffer().connect_changed(glib::clone!(
         #[weak]
         copy,
