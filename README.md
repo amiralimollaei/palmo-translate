@@ -1,10 +1,10 @@
 # Palmo Translate
 
-A Rust desktop GUI for an existing PLaMo 3 Translate server. It uses GTK4 and libadwaita through gtk-rs, plus Tokio and reqwest for asynchronous networking. No model is bundled, downloaded, or run locally.
+A desktop translation app for an existing PLaMo 3 Translate server. No model is bundled, downloaded, or run locally.
 
 ## Use
 
-Run `cargo run --release`. Open **Settings** using the gear icon in the window header to change **API server URL**, optional **Model ID**, **Maximum output tokens**, or API authentication. The default server is `http://localhost:9931`; enter `http://fedora.local:9931` for the LAN server (a root URL or a URL ending in `/v1` is accepted). Leave Model ID empty to use the server's default model. Choose the source language or automatic detection, choose a target, enter text, then click **Translate** or press **Ctrl+Enter** (**Command+Enter** on macOS).
+Start the application using a [release download](#release-downloads) or [build it from source](#build-from-source). Open **Settings** using the gear icon in the window header to change **API server URL**, optional **Model ID**, **Maximum output tokens**, or API authentication. The default server is `http://localhost:9931`; for a server on your network, enter its address, such as `http://192.168.1.10:9931` (a root URL or a URL ending in `/v1` is accepted). Leave Model ID empty to use the server's default model. Choose the source language or automatic detection, choose a target, enter text, then click **Translate** or press **Ctrl+Enter** (**Command+Enter** on macOS).
 
 - All 53 model-supported languages, including Persian and both Chinese variants.
 - Searchable language selectors: open a selector and type part of a language name to filter it. Swap explicit source/target languages and reuse the translation.
@@ -27,7 +27,7 @@ To replace a key, enter the new value and click **Save key**. **Remove saved key
 
 ## Release downloads
 
-Publishing a GitHub Release (including a prerelease) triggers `.github/workflows/release.yml`. It checks out the release tag, tests and compiles natively, then attaches these archives and `SHA256SUMS` after **all** builds succeed:
+Download the archive for your platform and the accompanying `SHA256SUMS` file from [GitHub Releases](https://github.com/amiralimollaei/palmo-translate/releases):
 
 | Archive | Platform |
 | --- | --- |
@@ -44,13 +44,16 @@ These are **dynamically linked binaries, not standalone installers**. Each archi
 
 Rust is not needed to run release binaries. On Linux, verify a download with `sha256sum --ignore-missing -c SHA256SUMS`; on macOS use `shasum -a 256 --ignore-missing -c SHA256SUMS`. On Windows use PowerShell `Get-FileHash <archive.zip> -Algorithm SHA256` and compare with the matching entry.
 
-Push the workflow and packaging script **before creating the release tag**, then publish a release for that tag. Draft releases and tag pushes alone do not trigger builds. The workflow uses the built-in `GITHUB_TOKEN`; no extra repository secrets are required. Failed builds leave the published release without new assets; after fixing the cause, rerun the failed workflow as appropriate. Rerunning successful builds replaces assets with the same names.
+## Build from source
 
-## Build prerequisites
+Building requires Rust **1.92+** (edition 2024), a C linker, pkg-config, GTK **4.12+**, and libadwaita **1.5+**.
 
-Rust **1.92+** (edition 2024), a C linker, pkg-config, GTK **4.12+**, and libadwaita **1.5+**. `Cargo.lock` is committed for reproducible dependency resolution. Uses gtk4 **0.11.5**, libadwaita **0.9.2**, and reqwest **0.13.5** with Rustls and platform certificate verification.
+Clone the repository and enter its directory before running the platform-specific commands:
 
-The application follows a model-view-controller separation: `src/model.rs` manages saved settings, `src/view.rs` constructs the GTK widgets, and `src/controller.rs` connects user actions to settings, credentials, and translation requests. `src/main.rs` starts the application; `src/api.rs`, `src/credentials.rs`, and `src/languages.rs` provide the translation, credential storage, and language data used by the controller and view.
+```sh
+git clone https://github.com/amiralimollaei/palmo-translate.git
+cd palmo-translate
+```
 
 ### Linux
 
@@ -67,6 +70,7 @@ Ubuntu 24.04 or newer (install current Rust using rustup):
 ```sh
 sudo apt install build-essential pkg-config libgtk-4-dev libadwaita-1-dev
 cargo build --release --locked
+./target/release/palmo-translate
 ```
 
 Optional per-user desktop installation:
@@ -100,21 +104,20 @@ cargo build --release --locked
 ./target/release/palmo-translate.exe
 ```
 
-Run inside UCRT64 so GTK DLLs and resources are available. Standalone distribution would need to bundle the GTK/libadwaita DLLs, transitive dependencies, schemas, icons, and resources; copying the executable alone is insufficient. Likewise, a standalone macOS app would need a bundle containing native dependencies. Release archives intentionally use system-installed runtimes instead. The native UI is GNOME-styled on all platforms.
+Run inside UCRT64 so GTK DLLs and resources are available. The native UI is GNOME-styled on all platforms.
 
-The Rustls AWS-LC cryptography provider requires NASM for the Windows source build; the release workflow installs it too. NASM is not required to run the compiled application.
+The Rustls AWS-LC cryptography provider requires NASM for the Windows source build. NASM is not required to run the compiled application.
 
 Linux is the exercised development platform; macOS and Windows require platform verification. `.local` host discovery also depends on the OS/network; use the server's IP address if necessary.
 
-## API and verification
+## Server requirements
 
-The client follows the model author's [production recommendation](https://huggingface.co/pfnet/plamo-3-translate-8b-GGUF#pfml3-prompt-format): construct PFML3 and POST to `/v1/completions` with `stream: true`, temperature zero, an explicit output limit, and `<|plamo:tag|>` / `<|plamo:bos|>` stop sequences. SSE text deltas are appended immediately; a broken stream is reported instead of treating partial text as a completed translation. A configured Model ID is sent as `model`; when empty, that field is omitted to use the server's default model. No chat-template configuration is required. Literal PLaMo control tokens in source text are rejected rather than interpreted as prompt structure.
+The server must support PFML3 prompts through the OpenAI-compatible Completions API. No chat-template configuration is required. Literal PLaMo control tokens in source text are rejected rather than interpreted as prompt structure.
 
 The token limit is for generated output, not input characters. Input and output together must fit the server's configured context window; server context-limit errors are shown rather than silently splitting or truncating text. Requests have a 10-second connection timeout and 180-second overall timeout.
 
-```sh
-cargo test --locked
-cargo run --locked --example translate -- '会議は来週の月曜日に変更されました。' en http://fedora.local:9931
-```
+Model licensing and server operation remain separate from this client; consult the model's PLaMo Community License for your use case.
 
-The example contacts the real server without authentication and accepts an optional fourth argument for Model ID. Model licensing and server operation remain separate from this client; consult the model's PLaMo Community License for your use case.
+## Development
+
+For architecture, API details, testing, and release publishing, see the [maintainer guide](https://github.com/amiralimollaei/palmo-translate/blob/main/MAINTAINERS.md).
