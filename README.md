@@ -7,7 +7,7 @@ A Rust desktop GUI for an existing PLaMo 3 Translate server. It uses GTK4 and li
 Run `cargo run --release`. Open **Settings** using the gear icon in the window header to change **API server URL**, optional **Model ID**, **Maximum output tokens**, or API authentication. The default server is `http://localhost:9931`; enter `http://fedora.local:9931` for the LAN server (a root URL or a URL ending in `/v1` is accepted). Leave Model ID empty to use the server's default model. Choose the source language or automatic detection, choose a target, enter text, then click **Translate** or press **Ctrl+Enter** (**Command+Enter** on macOS).
 
 - All 53 model-supported languages, including Persian and both Chinese variants.
-- Searchable language selectors; swap explicit source/target languages and reuse the translation.
+- Searchable language selectors: open a selector and type part of a language name to filter it. Swap explicit source/target languages and reuse the translation.
 - Selectable output and copy-to-clipboard button.
 - Live streaming translation with cancellation. Errors and warnings for incomplete or retained partial output remain visible until the output is cleared or a new translation starts. Partial output remains selectable and copyable during streaming or after cancellation or failure.
 - Equal-width language selectors with a centered swap button. Side-by-side editors on wide windows; vertically stacked on narrow ones.
@@ -24,7 +24,6 @@ Storage uses Secret Service on Linux (for example, an unlocked GNOME Keyring or 
 Keys use the service name `io.github.amiralimollaei.PalmoTranslate` and are scoped to the normalized server completion URL: root and `/v1` forms share a key, but different hosts, ports, or HTTP/HTTPS schemes do not. Requests send `Authorization: Bearer <key>`. Missing keys or unavailable/locked credential stores stop authenticated requests with a visible error; there is no plaintext fallback. Disable **Use API key** for an unauthenticated server.
 
 To replace a key, enter the new value and click **Save key**. **Remove saved key** deletes the credential for the current server; also disable **Use API key** if that server no longer requires authentication.
-
 
 ## Release downloads
 
@@ -50,6 +49,8 @@ Push the workflow and packaging script **before creating the release tag**, then
 ## Build prerequisites
 
 Rust **1.92+** (edition 2024), a C linker, pkg-config, GTK **4.12+**, and libadwaita **1.5+**. `Cargo.lock` is committed for reproducible dependency resolution. Uses gtk4 **0.11.5**, libadwaita **0.9.2**, and reqwest **0.13.5** with Rustls and platform certificate verification.
+
+The application follows a model-view-controller separation: `src/model.rs` manages saved settings, `src/view.rs` constructs the GTK widgets, and `src/controller.rs` connects user actions to settings, credentials, and translation requests. `src/main.rs` starts the application; `src/api.rs`, `src/credentials.rs`, and `src/languages.rs` provide the translation, credential storage, and language data used by the controller and view.
 
 ### Linux
 
