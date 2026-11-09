@@ -7,9 +7,9 @@ A Rust desktop GUI for an existing PLaMo 3 Translate server. Uses GTK4 and libad
 Run `cargo run --release`. Open **Settings** using the gear icon in the window header to change **API server URL**, optional **Model ID**, **Maximum output tokens**, or API authentication. The default server is `http://localhost:9931`; enter `http://fedora.local:9931` for the LAN server (a root URL or a URL ending in `/v1` is accepted). Leave Model ID empty to use the server's default model. Choose the source language or automatic detection, choose a target, enter text, then click **Translate** or press **Ctrl+Enter** (**Command+Enter** on macOS).
 
 - All 53 model-supported languages, including Persian and both Chinese variants.
-- Searchable language selectors; swap explicit source/target languages and reuse the translation. Changing source text or either language marks retained output as stale until you translate again.
+- Searchable language selectors; swap explicit source/target languages and reuse the translation.
 - Selectable output and copy-to-clipboard button.
-- Live streaming translation, cancellation that retains partial output, visible network/server errors, and an explicit incomplete-output warning when the output token limit is reached. Partial output remains selectable and copyable during streaming or after cancellation/failure.
+- Live streaming translation, cancellation that retains partial output, pop-up network/server errors, and an incomplete-output warning when the output token limit is reached. Partial output remains selectable and copyable during streaming or after cancellation/failure.
 - Equal-width language selectors with a centered swap button. Side-by-side editors on wide windows; vertically stacked on narrow ones.
 - Server, model ID, authentication-enabled flag, and output-token settings are saved when Settings closes; languages are also saved when a translation starts. Settings use GLib's platform-specific user configuration directory under `palmo-translate/settings.json`: on Linux, `$XDG_CONFIG_HOME/palmo-translate/settings.json`, normally `~/.config/palmo-translate/settings.json`. API keys, source text, and translation text are never saved in this JSON file.
 

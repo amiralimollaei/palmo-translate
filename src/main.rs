@@ -175,6 +175,7 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
     api_key.add_suffix(&save_key);
     authentication.add(&api_key);
     let remove_key = gtk::Button::with_label("Remove saved key");
+    remove_key.set_margin_top(12);
     authentication.add(&remove_key);
     page.add(&authentication);
     endpoint.connect_changed(glib::clone!(
@@ -300,17 +301,6 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
     translate.set_tooltip_text(Some("Translate (Ctrl+Enter)"));
     controls.append(&translate);
     body.append(&controls);
-    let status_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let spinner = gtk::Spinner::new();
-    spinner.set_visible(false);
-    let status = gtk::Label::new(Some("Ready · Text is sent only to the configured server"));
-    status.set_xalign(0.0);
-    status.set_wrap(true);
-    status.set_selectable(true);
-    status.add_css_class("dim-label");
-    status_row.append(&spinner);
-    status_row.append(&status);
-    body.append(&status_row);
 
     let job = Rc::new(RefCell::new(None::<tokio::task::JoinHandle<()>>));
     let generation = Rc::new(std::cell::Cell::new(0u64));
@@ -363,37 +353,12 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
     input.buffer().connect_changed(glib::clone!(
         #[weak]
         translate,
-        #[weak]
-        status,
-        #[weak]
-        copy,
-        #[weak]
-        output,
         #[strong]
         job,
         move |buffer| {
             translate.set_sensitive(job.borrow().is_none() && !text(buffer).trim().is_empty());
-            if job.borrow().is_none() && !text(&output.buffer()).is_empty() {
-                status.set_text("Source changed · Translate again to update the result");
-                copy.set_sensitive(true);
-            }
         }
     ));
-    for selector in [&source, &target] {
-        selector.connect_selected_notify(glib::clone!(
-            #[weak]
-            status,
-            #[weak]
-            output,
-            #[strong]
-            job,
-            move |_| {
-                if job.borrow().is_none() && output.buffer().char_count() > 0 {
-                    status.set_text("Language changed · Translate again to update the result");
-                }
-            }
-        ));
-    }
     output.buffer().connect_changed(glib::clone!(
         #[weak]
         copy,
@@ -443,7 +408,7 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
         #[weak] input, #[weak] output, #[weak] source, #[weak] target,
         #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
         #[weak] translate, #[weak] cancel, #[weak] overlay,
-        #[weak] swap, #[weak] spinner, #[weak] status, #[weak] copy,
+        #[weak] swap, #[weak] copy,
         #[strong] job, #[strong] generation, #[strong] runtime, #[strong] credential_busy,
         move |_, _| {
             if credential_busy.get() {
@@ -461,17 +426,15 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
             let url = endpoint.text().to_string();
             let authenticate = use_api_key.is_active();
             let settings = Settings { endpoint: url.clone(), source: request.source.clone(), target: request.target.clone(), max_tokens: request.max_tokens, model: model.text().trim().to_owned(), use_api_key: authenticate };
-            let save_error = settings.save().err().map(|e| format!(" · Settings not saved: {e}"));
+            if let Err(error) = settings.save() {
+                overlay.add_toast(adw::Toast::new(&format!("Settings not saved: {error}")));
+            }
             generation.set(generation.get() + 1);
             let id = generation.get();
             output.buffer().set_text("");
             copy.set_sensitive(false);
             for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), model.upcast_ref(), use_api_key.upcast_ref(), swap.upcast_ref(), translate.upcast_ref()] { widget.set_sensitive(false); }
             cancel.set_visible(true);
-            spinner.set_visible(true);
-            spinner.start();
-            status.remove_css_class("error");
-            status.set_text("Translating…");
             let (sender, receiver) = async_channel::bounded(16);
             let handle = runtime.spawn(async move {
                 let result = async {
@@ -491,7 +454,7 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                 #[weak] input, #[weak] output, #[weak] source, #[weak] target,
                 #[weak] endpoint, #[weak] limit, #[weak] model, #[weak] use_api_key,
                 #[weak] translate, #[weak] cancel,
-                #[weak] swap, #[weak] spinner, #[weak] status,
+                #[weak] swap, #[weak] overlay,
                 #[strong] job, #[strong] generation,
                 async move {
                     let mut terminal = false;
@@ -504,15 +467,15 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                                 output.scroll_to_iter(&mut buffer.end_iter(), 0.0, false, 0.0, 1.0);
                             }
                             api::TranslationEvent::Finished { truncated } => {
-                                let message = if truncated { "Output limit reached · Translation is incomplete; increase output tokens" } else { "Translation complete" };
-                                status.set_text(&format!("{message}{}", save_error.as_deref().unwrap_or("")));
+                                if truncated {
+                                    overlay.add_toast(adw::Toast::new("Output limit reached · Translation is incomplete; increase output tokens"));
+                                }
                                 terminal = true;
                                 break;
                             }
                             api::TranslationEvent::Failed(error) => {
                                 let partial = if output.buffer().char_count() > 0 { " · Partial translation retained" } else { "" };
-                                status.set_text(&format!("{error}{partial}"));
-                                status.add_css_class("error");
+                                overlay.add_toast(adw::Toast::new(&format!("{error}{partial}")));
                                 terminal = true;
                                 break;
                             }
@@ -520,15 +483,12 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
                     }
                     if generation.get() != id { return; }
                     if !terminal {
-                        status.set_text("Translation stream ended unexpectedly · Any partial translation is retained");
-                        status.add_css_class("error");
+                        overlay.add_toast(adw::Toast::new("Translation stream ended unexpectedly · Any partial translation is retained"));
                     }
                     job.borrow_mut().take();
                     for widget in [input.upcast_ref::<gtk::Widget>(), source.upcast_ref(), target.upcast_ref(), endpoint.upcast_ref(), limit.upcast_ref(), model.upcast_ref(), use_api_key.upcast_ref(), swap.upcast_ref()] { widget.set_sensitive(true); }
                     translate.set_sensitive(!text(&input.buffer()).trim().is_empty());
                     cancel.set_visible(false);
-                    spinner.stop();
-                    spinner.set_visible(false);
                 }
             ));
         }
@@ -555,10 +515,6 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
         translate,
         #[weak]
         swap,
-        #[weak]
-        spinner,
-        #[weak]
-        status,
         #[strong]
         job,
         #[strong]
@@ -582,10 +538,6 @@ fn build_window(app: &adw::Application, runtime: Arc<tokio::runtime::Runtime>) {
             }
             translate.set_sensitive(!text(&input.buffer()).trim().is_empty());
             cancel.set_visible(false);
-            spinner.stop();
-            spinner.set_visible(false);
-            status.remove_css_class("error");
-            status.set_text("Cancelled · Any partial translation is retained; the server may still finish generation");
         }
     ));
     window.connect_close_request(move |_| {
