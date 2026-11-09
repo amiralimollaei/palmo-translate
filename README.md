@@ -9,7 +9,7 @@ Start the application using a [release download](#release-downloads) or [build i
 - All 53 model-supported languages, including Persian and both Chinese variants.
 - Searchable language selectors: open a selector and type part of a language name to filter it. Swap explicit source/target languages and reuse the translation.
 - Selectable output and copy-to-clipboard button.
-- Live streaming translation with cancellation. Errors and warnings for incomplete or retained partial output remain visible until the output is cleared or a new translation starts. Partial output remains selectable and copyable during streaming or after cancellation or failure.
+- Live streaming translation with cancellation. If the output-token limit is reached, a dialog warns that the translation is incomplete and suggests increasing the limit in Settings. Other errors and warnings for retained partial output remain visible until the output is cleared or a new translation starts. Partial output remains selectable and copyable during streaming or after cancellation or failure.
 - Equal-width language selectors with a centered swap button. Side-by-side editors on wide windows; vertically stacked on narrow ones.
 - Server, model ID, authentication-enabled flag, and output-token settings are saved when Settings closes; languages are also saved when a translation starts. Settings use GLib's platform-specific user configuration directory under `palmo-translate/settings.json`: on Linux, `$XDG_CONFIG_HOME/palmo-translate/settings.json`, normally `~/.config/palmo-translate/settings.json`. API keys, source text, and translation text are never saved in this JSON file.
 
