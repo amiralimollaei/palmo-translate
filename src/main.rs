@@ -13,7 +13,7 @@ fn main() -> glib::ExitCode {
     let runtime =
         Arc::new(tokio::runtime::Runtime::new().expect("Cannot start networking runtime"));
     let app = adw::Application::builder()
-        .application_id("io.github.amiralimollaei.PalmoTranslate")
+        .application_id("io.github.amiralimollaei.PlamoTranslate")
         .build();
     app.connect_activate(move |app| {
         if let Some(window) = app.active_window() {

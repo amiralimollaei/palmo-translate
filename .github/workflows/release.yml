@@ -97,7 +97,7 @@ jobs:
           python .github/scripts/package-release.py \
             --platform "$RELEASE_PLATFORM" \
             --arch "$RELEASE_ARCH" \
-            --binary "target/release/palmo-translate$BINARY_EXTENSION"
+            --binary "target/release/plamo-translate$BINARY_EXTENSION"
 
       - name: Stage release archive
         uses: actions/upload-artifact@v7.0.2

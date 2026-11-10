@@ -36,7 +36,7 @@ impl Settings {
 
 fn settings_path() -> std::path::PathBuf {
     glib::user_config_dir()
-        .join("palmo-translate")
+        .join("plamo-translate")
         .join("settings.json")
 }
 
