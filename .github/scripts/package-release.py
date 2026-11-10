@@ -18,8 +18,8 @@ def main():
     root = Path(__file__).resolve().parents[2]
     output = root / "dist"
     output.mkdir(exist_ok=True)
-    name = f"palmo-translate-{args.platform}-{args.arch}"
-    binary_name = "palmo-translate.exe" if args.platform == "windows" else "palmo-translate"
+    name = f"plamo-translate-{args.platform}-{args.arch}"
+    binary_name = "plamo-translate.exe" if args.platform == "windows" else "plamo-translate"
     with tempfile.TemporaryDirectory() as directory:
         package = Path(directory) / name
         package.mkdir()
@@ -27,8 +27,8 @@ def main():
         shutil.copy2(root / "README.md", package / "README.md")
         if args.platform == "linux":
             shutil.copy2(
-                root / "data/io.github.amiralimollaei.PalmoTranslate.desktop",
-                package / "io.github.amiralimollaei.PalmoTranslate.desktop",
+                root / "data/io.github.amiralimollaei.PlamoTranslate.desktop",
+                package / "io.github.amiralimollaei.PlamoTranslate.desktop",
             )
         archive = shutil.make_archive(
             str(output / name),

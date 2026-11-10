@@ -58,14 +58,14 @@ impl View {
     pub(crate) fn new(app: &adw::Application, settings: &Settings) -> Self {
         let window = adw::ApplicationWindow::builder()
             .application(app)
-            .title("Palmo Translate")
+            .title("Plamo Translate")
             .default_width(960)
             .default_height(740)
             .build();
         let toolbar = adw::ToolbarView::new();
         let header = adw::HeaderBar::new();
         header.set_title_widget(Some(&adw::WindowTitle::new(
-            "Palmo Translate",
+            "Plamo Translate",
             "PLaMo API client",
         )));
         toolbar.add_top_bar(&header);

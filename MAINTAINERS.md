@@ -1,6 +1,6 @@
 # Maintainer guide
 
-Palmo Translate is a GTK4 and libadwaita desktop client for a separate PLaMo 3 Translate server. The [user README](README.md) describes server requirements, installation, configuration, and source-build prerequisites.
+Plamo Translate is a GTK4 and libadwaita desktop client for a separate PLaMo 3 Translate server. The [user README](README.md) describes server requirements, installation, configuration, and source-build prerequisites.
 
 ## Architecture
 

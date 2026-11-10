@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-const SERVICE: &str = "io.github.amiralimollaei.PalmoTranslate";
+const SERVICE: &str = "io.github.amiralimollaei.PlamoTranslate";
 
 fn entry(endpoint: &str) -> Result<keyring::Entry> {
     let account = crate::api::completion_url(endpoint)?.to_string();

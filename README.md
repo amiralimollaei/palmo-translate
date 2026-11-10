@@ -1,4 +1,4 @@
-# Palmo Translate
+# Plamo Translate
 
 A desktop translation app for an existing PLaMo 3 Translate server. No model is bundled, downloaded, or run locally.
 
@@ -11,7 +11,7 @@ Start the application using a [release download](#release-downloads) or [build i
 - Selectable output and copy-to-clipboard button.
 - Live streaming translation with cancellation. If the output-token limit is reached, a dialog warns that the translation is incomplete and suggests increasing the limit in Settings. Other errors and warnings for retained partial output remain visible until the output is cleared or a new translation starts. Partial output remains selectable and copyable during streaming or after cancellation or failure.
 - Equal-width language selectors with a centered swap button. Side-by-side editors on wide windows; vertically stacked on narrow ones.
-- Server, model ID, authentication-enabled flag, and output-token settings are saved when Settings closes; languages are also saved when a translation starts. Settings use GLib's platform-specific user configuration directory under `palmo-translate/settings.json`: on Linux, `$XDG_CONFIG_HOME/palmo-translate/settings.json`, normally `~/.config/palmo-translate/settings.json`. API keys, source text, and translation text are never saved in this JSON file.
+- Server, model ID, authentication-enabled flag, and output-token settings are saved when Settings closes; languages are also saved when a translation starts. Settings use GLib's platform-specific user configuration directory under `plamo-translate/settings.json`: on Linux, `$XDG_CONFIG_HOME/plamo-translate/settings.json`, normally `~/.config/plamo-translate/settings.json`. API keys, source text, and translation text are never saved in this JSON file.
 
 The server receives text only when Translate is activated. HTTP is unencrypted: configure HTTPS with a trusted certificate for remote authenticated servers. There is no cloud service or telemetry. Cancel drops the client request; the server may continue an already-running generation. The server must support PFML3 prompts through the OpenAI-compatible Completions API.
 
@@ -21,26 +21,26 @@ Enter a key in **New API key**, click **Save key**, and enable **Use API key**. 
 
 Storage uses Secret Service on Linux (for example, an unlocked GNOME Keyring or compatible KWallet service), Keychain on macOS, and Credential Manager on Windows. Linux authentication requires a running Secret Service provider on the desktop session bus; no extra native build dependency is required.
 
-Keys use the service name `io.github.amiralimollaei.PalmoTranslate` and are scoped to the normalized server completion URL: root and `/v1` forms share a key, but different hosts, ports, or HTTP/HTTPS schemes do not. Requests send `Authorization: Bearer <key>`. Missing keys or unavailable/locked credential stores stop authenticated requests with a visible error; there is no plaintext fallback. Disable **Use API key** for an unauthenticated server.
+Keys use the service name `io.github.amiralimollaei.PlamoTranslate` and are scoped to the normalized server completion URL: root and `/v1` forms share a key, but different hosts, ports, or HTTP/HTTPS schemes do not. Requests send `Authorization: Bearer <key>`. Missing keys or unavailable/locked credential stores stop authenticated requests with a visible error; there is no plaintext fallback. Disable **Use API key** for an unauthenticated server.
 
 To replace a key, enter the new value and click **Save key**. **Remove saved key** deletes the credential for the current server; also disable **Use API key** if that server no longer requires authentication.
 
 ## Release downloads
 
-Download the archive for your platform and the accompanying `SHA256SUMS` file from [GitHub Releases](https://github.com/amiralimollaei/palmo-translate/releases):
+Download the archive for your platform and the accompanying `SHA256SUMS` file from [GitHub Releases](https://github.com/amiralimollaei/plamo-translate/releases):
 
 | Archive | Platform |
 | --- | --- |
-| `palmo-translate-linux-x86_64.tar.gz` | Linux x86-64, built on Ubuntu 26.04 |
-| `palmo-translate-windows-x86_64.zip` | Windows x86-64, MSYS2 UCRT64 / GNU |
-| `palmo-translate-macos-aarch64.tar.gz` | macOS 15+, Apple Silicon |
-| `palmo-translate-macos-x86_64.tar.gz` | macOS 15+, Intel |
+| `plamo-translate-linux-x86_64.tar.gz` | Linux x86-64, built on Ubuntu 26.04 |
+| `plamo-translate-windows-x86_64.zip` | Windows x86-64, MSYS2 UCRT64 / GNU |
+| `plamo-translate-macos-aarch64.tar.gz` | macOS 15+, Apple Silicon |
+| `plamo-translate-macos-x86_64.tar.gz` | macOS 15+, Intel |
 
-These are **dynamically linked binaries, not standalone installers**. Each archive includes this README; Linux also includes the desktop launcher. Install the native runtime first, extract the matching archive, and run `./palmo-translate` from its directory:
+These are **dynamically linked binaries, not standalone installers**. Each archive includes this README; Linux also includes the desktop launcher. Install the native runtime first, extract the matching archive, and run `./plamo-translate` from its directory:
 
 - **Linux:** targets Ubuntu 26.04 or a distribution with compatible glibc, GTK, and libadwaita runtimes. Older Ubuntu releases are not a supported binary target; build from source there instead. On Ubuntu 26.04: `sudo apt install libgtk-4-1 libadwaita-1-0`. On a sufficiently recent Fedora: `sudo dnf install gtk4 libadwaita`.
 - **macOS:** `brew install gtk4 libadwaita`, using native Homebrew for your CPU architecture. Binaries are not Developer ID signed or notarized; macOS security controls may block downloaded executables.
-- **Windows:** install MSYS2, then run `pacman -S --needed mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-libadwaita` in **UCRT64**. Run `./palmo-translate.exe` from that terminal so its runtime DLLs and resources are available.
+- **Windows:** install MSYS2, then run `pacman -S --needed mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-libadwaita` in **UCRT64**. Run `./plamo-translate.exe` from that terminal so its runtime DLLs and resources are available.
 
 Rust is not needed to run release binaries. On Linux, verify a download with `sha256sum --ignore-missing -c SHA256SUMS`; on macOS use `shasum -a 256 --ignore-missing -c SHA256SUMS`. On Windows use PowerShell `Get-FileHash <archive.zip> -Algorithm SHA256` and compare with the matching entry.
 
@@ -51,8 +51,8 @@ Building requires Rust **1.92+** (edition 2024), a C linker, pkg-config, GTK **4
 Clone the repository and enter its directory before running the platform-specific commands:
 
 ```sh
-git clone https://github.com/amiralimollaei/palmo-translate.git
-cd palmo-translate
+git clone https://github.com/amiralimollaei/plamo-translate.git
+cd plamo-translate
 ```
 
 ### Linux
@@ -62,7 +62,7 @@ Fedora:
 ```sh
 sudo dnf install cargo rust gcc pkgconf-pkg-config gtk4-devel libadwaita-devel
 cargo build --release --locked
-./target/release/palmo-translate
+./target/release/plamo-translate
 ```
 
 Ubuntu 24.04 or newer (install current Rust using rustup):
@@ -70,14 +70,14 @@ Ubuntu 24.04 or newer (install current Rust using rustup):
 ```sh
 sudo apt install build-essential pkg-config libgtk-4-dev libadwaita-1-dev
 cargo build --release --locked
-./target/release/palmo-translate
+./target/release/plamo-translate
 ```
 
 Optional per-user desktop installation:
 
 ```sh
-install -Dm755 target/release/palmo-translate "$HOME/.local/bin/palmo-translate"
-install -Dm644 data/io.github.amiralimollaei.PalmoTranslate.desktop "$HOME/.local/share/applications/io.github.amiralimollaei.PalmoTranslate.desktop"
+install -Dm755 target/release/plamo-translate "$HOME/.local/bin/plamo-translate"
+install -Dm644 data/io.github.amiralimollaei.PlamoTranslate.desktop "$HOME/.local/share/applications/io.github.amiralimollaei.PlamoTranslate.desktop"
 ```
 
 Ensure `~/.local/bin` is in your desktop session's PATH.
@@ -89,7 +89,7 @@ Install Rust and [Homebrew](https://brew.sh), then:
 ```sh
 brew install pkg-config gtk4 libadwaita
 cargo build --release --locked
-./target/release/palmo-translate
+./target/release/plamo-translate
 ```
 
 If your shell cannot find Homebrew's pkg-config metadata, add `$(brew --prefix)/lib/pkgconfig` and `$(brew --prefix)/share/pkgconfig` to `PKG_CONFIG_PATH`.
@@ -101,7 +101,7 @@ Use an [MSYS2](https://www.msys2.org) **UCRT64** terminal and a matching GNU Rus
 ```sh
 pacman -S --needed mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-rust mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-libadwaita mingw-w64-ucrt-x86_64-nasm
 cargo build --release --locked
-./target/release/palmo-translate.exe
+./target/release/plamo-translate.exe
 ```
 
 Run inside UCRT64 so GTK DLLs and resources are available. The native UI is GNOME-styled on all platforms.
@@ -120,4 +120,4 @@ Model licensing and server operation remain separate from this client; consult t
 
 ## Development
 
-For architecture, API details, testing, and release publishing, see the [maintainer guide](https://github.com/amiralimollaei/palmo-translate/blob/main/MAINTAINERS.md).
+For architecture, API details, testing, and release publishing, see the [maintainer guide](https://github.com/amiralimollaei/plamo-translate/blob/main/MAINTAINERS.md).
