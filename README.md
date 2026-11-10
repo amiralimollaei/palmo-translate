@@ -1,4 +1,4 @@
-# Palmo Translate
+# Plamo Translate
 
 A desktop translation app for an existing PLaMo 3 Translate server. No model is bundled, downloaded, or run locally.
 
